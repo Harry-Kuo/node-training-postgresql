@@ -2,7 +2,7 @@ const express = require("express");
 
 const router = express.Router();
 const { dataSource } = require("../db/data-source");
-const logger = require("../utils/logger")("CreditPackage");
+const logger = require("../utils/logger")("Skill");
 const {
   isUndefined,
   isNotValidInteger,
@@ -11,12 +11,12 @@ const {
 
 router.get("/", async (req, res, next) => {
   try {
-    const package = await dataSource.getRepository("CreditPackage").find({
-      select: ["id", "name", "credit_amount", "price"],
+    const skill = await dataSource.getRepository("Skill").find({
+      select: ["id", "name"],
     });
     res.status(200).json({
       status: "success",
-      data: package,
+      data: skill,
     });
   } catch (error) {
     next(error);
@@ -26,39 +26,30 @@ router.get("/", async (req, res, next) => {
 router.post("/", async (req, res, next) => {
   try {
     const data = req.body;
-    if (
-      isUndefined(data.name) ||
-      isNotValidString(data.name) ||
-      isUndefined(data.credit_amount) ||
-      isNotValidInteger(data.credit_amount) ||
-      isUndefined(data.price) ||
-      isNotValidInteger(data.price)
-    ) {
+    if (isUndefined(data.name) || isNotValidString(data.name)) {
       res.status(400).json({
         status: "failed",
         message: "欄位未填寫正確",
       });
       return;
     }
-    const creditPackageRepo = await dataSource.getRepository("CreditPackage");
-    const existPackage = await creditPackageRepo.find({
+    const skillRepo = await dataSource.getRepository("Skill");
+    const existSkill = await skillRepo.find({
       where: {
         name: data.name,
       },
     });
-    if (existPackage.length > 0) {
+    if (existSkill.length > 0) {
       res.status(409).json({
         status: "failed",
         message: "資料重複",
       });
       return;
     }
-    const newPackage = await creditPackageRepo.create({
+    const newSkill = await skillRepo.create({
       name: data.name,
-      credit_amount: data.credit_amount,
-      price: data.price,
     });
-    const result = await creditPackageRepo.save(newPackage);
+    const result = await skillRepo.save(newSkill);
     res.status(200).json({
       status: "success",
       data: result,
@@ -68,19 +59,17 @@ router.post("/", async (req, res, next) => {
   }
 });
 
-router.delete("/:creditPackageId", async (req, res, next) => {
+router.delete("/:skill", async (req, res, next) => {
   try {
-    const packageId = req.params.creditPackageId;
-    if (isUndefined(packageId) || isNotValidString(packageId)) {
+    const skillId = req.params.skill;
+    if (isUndefined(skillId) || isNotValidString(skillId)) {
       res.status(400).json({
         status: "failed",
         message: "ID錯誤",
       });
       return;
     }
-    const result = await dataSource
-      .getRepository("CreditPackage")
-      .delete(packageId);
+    const result = await dataSource.getRepository("Skill").delete(skillId);
     if (result.affected === 0) {
       res.status(400).json({
         status: "failed",
