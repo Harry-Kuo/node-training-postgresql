@@ -50,4 +50,10 @@ router.get(
   handleErrorAsync(adminController.getCoachCourseDetail)
 );
 
+router.get(
+  "/coaches/revenue",
+  isAuth,
+  isCoach,
+  handleErrorAsync(adminController.getCoachRevenue)
+);
 module.exports = router;

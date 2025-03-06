@@ -7,6 +7,24 @@ const {
   isNotValidString,
 } = require("../utils/validUtils");
 
+const dayjs = require("dayjs");
+const utc = require("dayjs/plugin/utc");
+dayjs.extend(utc);
+const monthMap = {
+  january: 1,
+  february: 2,
+  march: 3,
+  april: 4,
+  may: 5,
+  june: 6,
+  july: 7,
+  august: 8,
+  september: 9,
+  october: 10,
+  november: 11,
+  december: 12,
+};
+
 const adminController = {
   async postCoachCourse(req, res, next) {
     const {
@@ -384,6 +402,78 @@ const adminController = {
     res.status(200).json({
       status: "success",
       data: data,
+    });
+  },
+  async getCoachRevenue(req, res, next) {
+    const { id } = req.user;
+    const { month } = req.query;
+    if (
+      isUndefined(month) ||
+      !Object.prototype.hasOwnProperty.call(monthMap, month)
+    ) {
+      return next(appError(400, "欄位未填寫正確"));
+    }
+    const courseRepo = dataSource.getRepository("Course");
+    const courses = await courseRepo.find({
+      select: ["id"],
+      where: { user_id: id },
+    });
+    const courseIds = courses.map((course) => course.id);
+    if (courseIds.length === 0) {
+      res.status(200).json({
+        status: "success",
+        data: {
+          total: {
+            revenue: 0,
+            participants: 0,
+            course_count: 0,
+          },
+        },
+      });
+      return;
+    }
+    const courseBookingRepo = dataSource.getRepository("CourseBooking");
+    const year = new Date().getFullYear();
+    const calculateStartAt = dayjs(`${year}-${month}-01`)
+      .startOf("month")
+      .toISOString();
+    const calculateEndAt = dayjs(`${year}-${month}-01`)
+      .endOf("month")
+      .toISOString();
+    const courseCount = await courseBookingRepo
+      .createQueryBuilder("course_booking")
+      .select("COUNT(*)", "count")
+      .where("course_id IN (:...ids)", { ids: courseIds })
+      .andWhere("cancelled_at IS NULL")
+      .andWhere("created_at >= :startDate", { startDate: calculateStartAt })
+      .andWhere("created_at <= :endDate", { endDate: calculateEndAt })
+      .getRawOne();
+    const participants = await courseBookingRepo
+      .createQueryBuilder("course_booking")
+      .select("COUNT(DISTINCT(user_id))", "count")
+      .where("course_id IN (:...ids)", { ids: courseIds })
+      .andWhere("cancelled_at IS NULL")
+      .andWhere("created_at >= :startDate", { startDate: calculateStartAt })
+      .andWhere("created_at <= :endDate", { endDate: calculateEndAt })
+      .getRawOne();
+    const totalCreditPackage = await dataSource
+      .getRepository("CreditPackage")
+      .createQueryBuilder("credit_package")
+      .select("SUM(credit_amount)", "total_credit_amount")
+      .addSelect("SUM(price)", "total_price")
+      .getRawOne();
+    const perCreditPrice =
+      totalCreditPackage.total_price / totalCreditPackage.total_credit_amount;
+    const totalRevenue = courseCount.count * perCreditPrice;
+    res.status(200).json({
+      status: "success",
+      data: {
+        total: {
+          revenue: Math.floor(totalRevenue),
+          participants: parseInt(participants.count, 10),
+          course_count: parseInt(courseCount.count, 10),
+        },
+      },
     });
   },
 };
